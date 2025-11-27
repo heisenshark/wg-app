@@ -15,6 +15,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Fonts } from '@/constants/theme';
 import { SearchBox } from '@/components/SearchBox'; // Import the new component
 import Icon from '@/components/icon';
+import { Link } from 'expo-router';
 
 // --- Mock Data ---
 const SECTIONS = [
@@ -37,6 +38,14 @@ const SECTIONS = [
     data: [
       { id: '5', title: 'TypeScript Tutorial', date: '12.08.2024', image: 'https://via.placeholder.com/300x169/007acc/FFFFFF?text=TS' },
       { id: '6', title: 'Intro & Setup', date: '12.08.2024', image: 'https://via.placeholder.com/300x169/007acc/FFFFFF?text=Setup' },
+    ]
+  },
+
+  {
+    title: 'JavaScript',
+    data: [
+      { id: '7', title: 'TypeScript Tutorial', date: '12.08.2024', image: 'https://via.placeholder.com/300x169/007acc/FFFFFF?text=TS' },
+      { id: '8', title: 'Intro & Setup', date: '12.08.2024', image: 'https://via.placeholder.com/300x169/007acc/FFFFFF?text=Setup' },
     ]
   }
 ];
@@ -90,12 +99,14 @@ export default function TabTwoScreen() {
                 ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
                 renderItem={({ item }) => (
                   <View style={styles.card}>
-                    <Image
-                      source={{ uri: item.image }}
-                      style={styles.cardImage}
-                      contentFit="cover"
-                      transition={1000}
-                    />
+                    <Link href="/detail">
+                      <Image
+                        source={{ uri: item.image }}
+                        style={styles.cardImage}
+                        contentFit="cover"
+                        transition={1000}
+                      />
+                    </Link>
                     <ThemedText numberOfLines={2} type="defaultSemiBold" style={styles.cardTitle}>
                       {item.title}
                     </ThemedText>
