@@ -11,13 +11,13 @@ type IconProps = ImageNativeProps & {
 
 export default function components({ name, style, color, ...otherProps }: IconProps) {
   return (
-    <Image tintColor={color} style={styles.icon} source={icons[name]} {...otherProps}></Image>
+    <Image tintColor={color} contentFit='contain' style={[styles.icon, style]} source={icons[name]} {...otherProps}></Image>
   );
 }
 
 const styles = StyleSheet.create(
   {
-    icon: { flex: 1, width: '100%', color: "#fff" }
+    icon: { flex: 1, width: '100%', }
   }
 )
 
