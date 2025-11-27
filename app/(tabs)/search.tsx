@@ -1,6 +1,5 @@
 import {
   StyleSheet,
-  TextInput,
   FlatList,
   TouchableOpacity,
   ScrollView,
@@ -12,8 +11,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol'; // Using your existing icon component
-import { Fonts } from '@/constants/theme';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors, Fonts } from '@/constants/theme';
+import { SearchBox } from '@/components/SearchBox'; // Import the new component
+import Icon from '@/components/icon';
 
 // --- Mock Data ---
 const SECTIONS = [
@@ -43,7 +44,7 @@ const SECTIONS = [
 export default function TabTwoScreen() {
   const colorScheme = useColorScheme();
   const iconColor = colorScheme === 'dark' ? '#A1CEDC' : '#1e293b';
-  const borderColor = colorScheme === 'dark' ? '#353636' : '#334155';
+  const colors = Colors[colorScheme ?? 'light'];
 
   return (
     <ThemedView style={styles.container}>
@@ -51,17 +52,18 @@ export default function TabTwoScreen() {
 
         {/* Header Section */}
         <View style={styles.headerContainer}>
-          <View style={[styles.searchContainer, { borderColor }]}>
-            {/* Using your IconSymbol component */}
-            <IconSymbol name="magnifyingglass" size={20} color={iconColor} style={{ marginRight: 8 }} />
-            <TextInput
-              style={[styles.searchInput, { color: colorScheme === 'dark' ? '#fff' : '#000' }]}
-              placeholder="Search videos"
-              placeholderTextColor="#888"
-            />
-          </View>
-          <TouchableOpacity>
-            <IconSymbol name="gearshape" size={26} color={iconColor} />
+          {/* 
+             1. The SearchBox component (exported separately).
+             2. "flex: 1" ensures it takes all available space leaving room for the icon.
+          */}
+          <SearchBox
+            placeholder="Search videos"
+            style={{ flex: 1 }}
+          />
+
+          {/* Cogwheel Icon to the right */}
+          <TouchableOpacity style={styles.settingsButton}>
+            <Icon name='settings' color={colors.text}></Icon>
           </TouchableOpacity>
         </View>
 
@@ -126,21 +128,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 12,
+    gap: 12, // Gap between SearchBox and Gear Icon
   },
-  searchContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 48,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    height: '100%',
+  settingsButton: {
+    width: 38,
+    padding: 2,
   },
   sectionHeader: {
     flexDirection: 'row',
