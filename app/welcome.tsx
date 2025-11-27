@@ -22,12 +22,11 @@ export default function LoginScreen() {
 
         {/* --- Top Section: Logo --- */}
         <View style={styles.logoContainer}>
-          {/* REPLACE THIS IMAGE WITH YOUR LOGO ASSET */}
-          {/* Example: source={require('@/assets/images/logo.png')} */}
-          <View style={styles.placeholderLogo}>
-            <ThemedText type="title" style={styles.logoText}>YouTube</ThemedText>
-            <ThemedText type="defaultSemiBold" style={styles.subLogoText}>LEARN</ThemedText>
-          </View>
+          <Image
+            style={styles.logo}
+            source={require('@/assets/logo.png')}
+            contentFit='contain'
+          />
         </View>
 
         {/* --- Middle Section: Hero Image/Icon --- */}
@@ -35,6 +34,11 @@ export default function LoginScreen() {
           {/* REPLACE THIS WITH YOUR HERO IMAGE */}
           {/* <Image source={require('@/assets/images/hero.png')} style={styles.heroImage} /> */}
 
+          <Image
+            style={styles.logo}
+            source={require('@/assets/app-icon.png')}
+            contentFit='contain'
+          />
           {/* Placeholder Icon representing the image in your screenshot */}
           <IconSymbol
             name="play.rectangle.fill"
@@ -82,7 +86,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#9cacbf', // Muted Blue-Gray from screenshot
+    backgroundColor: '#8D99AE', // Muted Blue-Gray from screenshot
   },
   safeArea: {
     flex: 1,
@@ -94,7 +98,9 @@ const styles = StyleSheet.create({
   // Logo Styles
   logoContainer: {
     alignItems: 'center',
-    marginTop: 60,
+    width: '100%',
+    flex: 1,
+    paddingHorizontal: 30,
   },
   placeholderLogo: {
     alignItems: 'center',
@@ -122,7 +128,6 @@ const styles = StyleSheet.create({
   heroImage: {
     width: 200,
     height: 200,
-    contentFit: 'contain',
   },
 
   // Bottom Styles
@@ -133,11 +138,11 @@ const styles = StyleSheet.create({
   welcomeText: {
     color: '#FFFFFF',
     fontSize: 24,
-    textAlign: 'center',
+    textAlign: 'left',
     lineHeight: 32,
   },
   button: {
-    backgroundColor: '#282a3a', // Dark Navy/Black
+    backgroundColor: '#2B2D42', // Dark Navy/Black
     paddingVertical: 18,
     borderRadius: 16,
     alignItems: 'center',
@@ -154,7 +159,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 18,
   },
   footerTextContainer: {
     alignItems: 'center',
@@ -170,6 +175,10 @@ const styles = StyleSheet.create({
     color: '#1e293b', // Darker text for links
     textDecorationLine: 'underline',
     fontWeight: '600',
+  },
+  logo: {
+    flex: 1,
+    width: '100%',
   },
 });
 
