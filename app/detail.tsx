@@ -4,91 +4,132 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
-  useWindowDimensions
+  ActivityIndicator
 } from 'react-native';
-import { Image } from 'expo-image';
+import { Image } from 'expo-image'; // Upewnij się, że masz ten import
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import { useQuery } from '@tanstack/react-query';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { VideoPlayer } from '@/components/video-player';
-
-const { width } = Dimensions.get('window');
-import * as ScreenOrientation from 'expo-screen-orientation';
 import Icon from '@/components/icon';
 import { IconName } from 'generated-icons';
+import {
+  YouTubeSearchResult,
+  fetchVideoDetails,
+  fetchChannelDetails // Import nowej funkcji
+} from '@/utils/api';
 
-
-const VIDEO_HEIGHT = width * 0.5625; // 16:9 Aspect Ratio
-
-// --- Mock Data ---
-const VIDEO_INFO = {
-  title: 'Lorem ipsum dolor sit amet, consect...',
-  channelName: 'Channel name',
-  description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque venenatis semper purus a accumsan. Donec accumsan pulvinar metus, euismod lacinia libero congue non.',
-  views: '25268952 views',
-  likes: '12345 likes',
-  currentTime: '2:08',
-  totalTime: '11:57'
+const formatNumber = (numStr: string | undefined) => {
+  if (!numStr) return '0';
+  const num = parseInt(numStr, 10);
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toString();
 };
-
-// --- Components ---
 
 const StatBox = ({ icon, text }: { icon: IconName, text: string }) => (
   <View style={styles.statBox}>
-    <Icon name={icon as any} color="#fff" style={{ marginRight: 8, height: 20, width: 20 }} />
+    <Icon name={icon} color="#fff" style={{ marginRight: 8, height: 20, width: 20 }} />
     <ThemedText type="defaultSemiBold" style={{ color: '#fff', fontSize: 13 }}>{text}</ThemedText>
   </View>
 );
 
 export default function VideoDetailScreen() {
-  const [orientation, setOrientation] = useState(0)
-  const [width, setWidth] = useState(Dimensions.get('window'));
+  const router = useRouter();
+  const { videoData } = useLocalSearchParams();
+  const [orientation, setOrientation] = useState(0);
+
+  // 1. Dane początkowe
+  const initialVideo: YouTubeSearchResult | null = videoData
+    ? JSON.parse(videoData as string)
+    : null;
+
+  const videoId = initialVideo?.id?.videoId;
+  const channelId = initialVideo?.snippet?.channelId; // Pobieramy channelId
+
+  // 2. Query: Detale Wideo (Statystyki, pełny opis)
+  const { data: fullDetails, isLoading: isVideoLoading } = useQuery({
+    queryKey: ['videoDetails', videoId],
+    queryFn: () => fetchVideoDetails(videoId!),
+    enabled: !!videoId,
+  });
+
+  // 3. Query: Detale Kanału (Avatar)
+  const { data: channelDetails } = useQuery({
+    queryKey: ['channelDetails', channelId],
+    queryFn: () => fetchChannelDetails(channelId!),
+    enabled: !!channelId, // Pobieramy tylko gdy mamy ID kanału
+  });
 
   useEffect(() => {
     ScreenOrientation.unlockAsync();
-    ScreenOrientation.getOrientationAsync().then(e => setOrientation(e))
-    const sub = ScreenOrientation.addOrientationChangeListener((e) => { setOrientation(e.orientationInfo.orientation) });
+    ScreenOrientation.getOrientationAsync().then(e => setOrientation(e));
+    const sub = ScreenOrientation.addOrientationChangeListener((e) => {
+      setOrientation(e.orientationInfo.orientation);
+    });
     return () => {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
       ScreenOrientation.removeOrientationChangeListener(sub);
-    }
+    };
   }, []);
 
+  if (!initialVideo) return null;
 
+  // Scalanie danych
+  const title = fullDetails?.snippet.title || initialVideo.snippet.title;
+  const channelTitle = fullDetails?.snippet.channelTitle || initialVideo.snippet.channelTitle;
+  const description = fullDetails?.snippet.description || initialVideo.snippet.description;
+  const thumbnail = initialVideo.snippet.thumbnails.high?.url || initialVideo.snippet.thumbnails.medium.url;
+
+  // URL Avatara (może być undefined w trakcie ładowania)
+  const channelAvatarUrl = channelDetails?.snippet.thumbnails.default.url;
 
   return (
     <ThemedView style={styles.container}>
       <StatusBar style="light" />
       <SafeAreaView edges={['top']} style={{ flex: 0, backgroundColor: '#000' }} />
 
-      {/* Video Player Section (Fixed at top) */}
-
-      {/* Scrollable Content */}
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
-        <VideoPlayer thumbnailUri='https://img.youtube.com/vi/gvkqT_Uoahw/maxresdefault.jpg' />
-        {/* Title */}
+        <VideoPlayer
+          thumbnailUri={thumbnail}
+          onBackPress={() => router.back()}
+          currentTime="0:00"
+          totalTime="--:--"
+        />
+
         <View style={styles.scrollContentContainer}>
 
           <ThemedText type="subtitle" style={styles.videoTitle}>
-            {VIDEO_INFO.title}
+            {title}
           </ThemedText>
 
-          {/* Channel Info */}
+          {/* Sekcja Kanału z Avatarem */}
           <View style={styles.channelContainer}>
-            <View style={styles.avatar}>
-              <IconSymbol name="person" size={24} color="#fff" />
+            <View style={styles.avatarContainer}>
+              {channelAvatarUrl ? (
+                <Image
+                  source={{ uri: channelAvatarUrl }}
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                  transition={500}
+                />
+              ) : (
+                // Fallback icon zanim załaduje się obrazek
+                <IconSymbol name="person.circle.fill" size={48} color="#282a3a" />
+              )}
             </View>
             <ThemedText type="defaultSemiBold" style={styles.channelName}>
-              {VIDEO_INFO.channelName}
+              {channelTitle}
             </ThemedText>
           </View>
 
-          {/* Tabs */}
           <View style={styles.tabContainer}>
             <TouchableOpacity style={[styles.tabItem, styles.activeTab]}>
               <ThemedText type="defaultSemiBold" style={styles.activeTabText}>Details</ThemedText>
@@ -99,23 +140,29 @@ export default function VideoDetailScreen() {
           </View>
           <View style={styles.divider} />
 
-          {/* Description */}
           <View style={styles.section}>
             <ThemedText type="defaultSemiBold" style={styles.sectionHeader}>Description</ThemedText>
             <ThemedText style={styles.descriptionText}>
-              {VIDEO_INFO.description}
-              {'\n\n'}
-              Vivamus ut massa finibus, consequat dui commodo, semper magna. Donec nec justo consectetur lacus facilisis tristique eget quis nulla.
+              {description}
             </ThemedText>
           </View>
 
-          {/* Statistics */}
           <View style={styles.section}>
             <ThemedText type="defaultSemiBold" style={styles.sectionHeader}>Statistics</ThemedText>
-            <View style={styles.statsContainer}>
-              <StatBox icon="views" text={VIDEO_INFO.views} />
-              <StatBox icon="likes" text={VIDEO_INFO.likes} />
-            </View>
+            {isVideoLoading ? (
+              <ActivityIndicator size="small" style={{ alignSelf: 'flex-start', marginVertical: 10 }} />
+            ) : (
+              <View style={styles.statsContainer}>
+                <StatBox
+                  icon="views"
+                  text={`${formatNumber(fullDetails?.statistics?.viewCount)} Views`}
+                />
+                <StatBox
+                  icon="likes"
+                  text={`${formatNumber(fullDetails?.statistics?.likeCount)} Likes`}
+                />
+              </View>
+            )}
           </View>
 
         </View>
@@ -125,110 +172,13 @@ export default function VideoDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  // ... (reszta stylów bez zmian)
   container: {
     flex: 1,
     backgroundColor: '#fff',
   },
-
-  // --- Video Styles ---
-  videoContainer: {
-    width: width,
-    height: VIDEO_HEIGHT,
-    backgroundColor: '#000',
-    position: 'relative',
-  },
-  videoBackground: {
-    width: '100%',
-    height: '100%',
-    opacity: 0.6, // Dimmed for overlay visibility
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: 'rgba(0,0,0,0.3)', // Slight dark tint
-  },
-  topControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  topRightControls: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  iconButton: {
-    padding: 4,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 20,
-  },
-  centerControls: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 40,
-  },
-  controlCircleLarge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  controlCircleSmall: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bottomControls: {
-    marginBottom: 5,
-  },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  timeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  progressBarContainer: {
-    height: 4,
-    width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    borderRadius: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progressBarBackground: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 2,
-  },
-  progressBarFill: {
-    width: '18%', // Simulated progress
-    height: '100%',
-    backgroundColor: '#ff0000',
-    borderRadius: 2,
-  },
-  progressBarKnob: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#ff0000',
-    marginLeft: -6, // Center on end of fill
-    left: '18%',
-  },
-
-  // --- Content Styles ---
   scrollContent: {
+    paddingBottom: 40,
   },
   scrollContentContainer: {
     padding: 20,
@@ -244,21 +194,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  avatar: {
+  // Zaktualizowane style avatara
+  avatarContainer: {
+    marginRight: 12,
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#282a3a', // Dark Navy
+    overflow: 'hidden', // Ważne dla Image
+    backgroundColor: '#eee', // Tło podczas ładowania
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   channelName: {
     fontSize: 16,
     color: '#282a3a',
+    flex: 1, // Aby tekst nie wychodził poza ekran przy długich nazwach
   },
-
-  // Tabs
   tabContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -285,8 +240,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#e2e8f0',
     marginBottom: 20,
   },
-
-  // Description & Stats
   section: {
     marginBottom: 24,
   },
@@ -309,9 +262,12 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#282a3a', // Dark Navy
+    backgroundColor: '#282a3a',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
   },
 });
+
+
+

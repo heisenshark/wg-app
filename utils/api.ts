@@ -73,6 +73,97 @@ const fetchVideos = async (query: string): Promise<YouTubeSearchResult[]> => {
 	}
 };
 
+
+export interface YouTubeStatistics {
+	viewCount: string;
+	likeCount: string;
+	favoriteCount: string;
+	commentCount: string;
+}
+
+export interface YouTubeVideoDetail {
+	kind: string;
+	etag: string;
+	id: string;
+	snippet: YouTubeSnippet;
+	statistics: YouTubeStatistics;
+}
+
+export interface YouTubeVideoDetailsResponse {
+	items: YouTubeVideoDetail[];
+}
+
+
+export interface YouTubeChannelSnippet {
+	title: string;
+	description: string;
+	thumbnails: {
+		default: YouTubeThumbnail;
+		medium: YouTubeThumbnail;
+		high: YouTubeThumbnail;
+	};
+}
+
+export interface YouTubeChannelDetail {
+	kind: string;
+	etag: string;
+	id: string;
+	snippet: YouTubeChannelSnippet;
+}
+
+export interface YouTubeChannelResponse {
+	items: YouTubeChannelDetail[];
+}
+
+export const fetchChannelDetails = async (channelId: string): Promise<YouTubeChannelDetail | null> => {
+	if (!apiKey) return null;
+
+	try {
+		const params = new URLSearchParams({
+			part: 'snippet',
+			id: channelId,
+			key: apiKey,
+		});
+
+		const response = await fetch(`https://www.googleapis.com/youtube/v3/channels?${params.toString()}`);
+
+		if (!response.ok) {
+			throw new Error(`YouTube Channel API Error: ${response.status}`);
+		}
+
+		const data: YouTubeChannelResponse = await response.json();
+		return data.items.length > 0 ? data.items[0] : null;
+	} catch (error) {
+		console.error("Fetch channel error:", error);
+		return null;
+	}
+};
+
+export const fetchVideoDetails = async (videoId: string): Promise<YouTubeVideoDetail | null> => {
+	if (!apiKey) return null;
+
+	try {
+		const params = new URLSearchParams({
+			part: 'snippet,statistics',
+			id: videoId,
+			key: apiKey,
+		});
+
+		const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?${params.toString()}`);
+
+		if (!response.ok) {
+			throw new Error(`YouTube API Error: ${response.status}`);
+		}
+
+		const data: YouTubeVideoDetailsResponse = await response.json();
+
+		return data.items.length > 0 ? data.items[0] : null;
+	} catch (error) {
+		console.error("Fetch details error:", error);
+		return null;
+	}
+};
+
 export const fetchJsVideos = () => fetchVideos("javascript news tutorial");
 export const fetchReactVideos = () => fetchVideos("reactjs tutorial course");
 export const fetchRnVideos = () => fetchVideos("react native tutorial project");
