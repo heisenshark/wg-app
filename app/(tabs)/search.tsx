@@ -4,56 +4,108 @@ import {
   TouchableOpacity,
   ScrollView,
   View,
-  useColorScheme
+  useColorScheme,
+  ActivityIndicator
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query'; // Upewnij się, że masz to zainstalowane
+import { Link } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, Fonts } from '@/constants/theme';
-import { SearchBox } from '@/components/SearchBox'; // Import the new component
-import Icon from '@/components/icon';
-import { Link } from 'expo-router';
+import { SearchBox } from '@/components/SearchBox';
+import Icon from '@/components/icon'; // Twój import ikon
 
-// --- Mock Data ---
-const SECTIONS = [
-  {
-    title: 'React Native',
-    data: [
-      { id: '1', title: 'Lorem ipsum dolor sit amet, consectetur...', date: '12.08.2024', image: 'https://img.youtube.com/vi/gvkqT_Uoahw/maxresdefault.jpg' },
-      { id: '2', title: 'React Native in 100 seconds', date: '12.08.2024', image: 'https://img.youtube.com/vi/gvkqT_Uoahw/mqdefault.jpg' },
-    ]
-  },
-  {
-    title: 'React',
-    data: [
-      { id: '3', title: 'Introduction to React Hooks', date: '12.08.2024', image: 'https://via.placeholder.com/300x169/282c34/61dafb?text=React+Intro' },
-      { id: '4', title: 'React Introduction', date: '12.08.2024', image: 'https://via.placeholder.com/300x169/282c34/61dafb?text=React' },
-    ]
-  },
-  {
-    title: 'TypeScript',
-    data: [
-      { id: '5', title: 'TypeScript Tutorial', date: '12.08.2024', image: 'https://via.placeholder.com/300x169/007acc/FFFFFF?text=TS' },
-      { id: '6', title: 'Intro & Setup', date: '12.08.2024', image: 'https://via.placeholder.com/300x169/007acc/FFFFFF?text=Setup' },
-    ]
-  },
+// Importujemy funkcje API
+import {
+  fetchJsVideos,
+  fetchReactVideos,
+  fetchRnVideos,
+  fetchTsVideos,
+  YouTubeSearchResult
+} from '@/utils/api';
 
-  {
-    title: 'JavaScript',
-    data: [
-      { id: '7', title: 'TypeScript Tutorial', date: '12.08.2024', image: 'https://via.placeholder.com/300x169/007acc/FFFFFF?text=TS' },
-      { id: '8', title: 'Intro & Setup', date: '12.08.2024', image: 'https://via.placeholder.com/300x169/007acc/FFFFFF?text=Setup' },
-    ]
+// Helper do formatowania daty (np. 2024-08-12 -> 12.08.2024)
+const formatDate = (isoString: string) => {
+  const date = new Date(isoString);
+  return date.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+// Komponent sekcji (zeby nie powtarzać kodu w głównym komponencie)
+const VideoSection = ({ title, isLoading, data }: { title: string, isLoading: boolean, data?: YouTubeSearchResult[] }) => {
+  if (isLoading) {
+    return (
+      <View style={{ height: 200, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="small" />
+      </View>
+    );
   }
-];
+
+  if (!data || data.length === 0) return null;
+
+  return (
+    <View>
+      <View style={styles.sectionHeader}>
+        <ThemedText type="subtitle" style={{ fontFamily: Fonts.rounded, fontSize: 20 }}>
+          {title}
+        </ThemedText>
+        <TouchableOpacity>
+          <ThemedText style={styles.showMore}>Show more</ThemedText>
+        </TouchableOpacity>
+      </View>
+
+      <FlatList
+        data={data}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        keyExtractor={(item) => item.id.videoId}
+        ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            {/* Przekazujemy cały obiekt wideo jako string JSON do detali */}
+            <Link
+              href={{
+                pathname: "/detail", // Upewnij się, że masz taki plik w app/detail.tsx lub app/(tabs)/...
+                params: { videoData: JSON.stringify(item) }
+              }}
+              asChild
+            >
+              <TouchableOpacity>
+                <Image
+                  source={{ uri: item.snippet.thumbnails.medium.url }}
+                  style={styles.cardImage}
+                  contentFit="cover"
+                  transition={500}
+                />
+                <ThemedText numberOfLines={2} type="defaultSemiBold" style={styles.cardTitle}>
+                  {item.snippet.title}
+                </ThemedText>
+                <ThemedText style={styles.cardDate}>
+                  {formatDate(item.snippet.publishedAt)}
+                </ThemedText>
+              </TouchableOpacity>
+            </Link>
+          </View>
+        )}
+      />
+      <View style={styles.divider} />
+    </View>
+  );
+};
 
 export default function TabTwoScreen() {
   const colorScheme = useColorScheme();
-  const iconColor = colorScheme === 'dark' ? '#A1CEDC' : '#1e293b';
   const colors = Colors[colorScheme ?? 'light'];
+
+  // --- TanStack Queries ---
+  // Pobieramy dane równolegle
+  const { data: rnVideos, isLoading: rnLoading } = useQuery({ queryKey: ['videos', 'rn'], queryFn: fetchRnVideos });
+  const { data: reactVideos, isLoading: reactLoading } = useQuery({ queryKey: ['videos', 'react'], queryFn: fetchReactVideos });
+  const { data: tsVideos, isLoading: tsLoading } = useQuery({ queryKey: ['videos', 'ts'], queryFn: fetchTsVideos });
+  const { data: jsVideos, isLoading: jsLoading } = useQuery({ queryKey: ['videos', 'js'], queryFn: fetchJsVideos });
 
   return (
     <ThemedView style={styles.container}>
@@ -61,66 +113,22 @@ export default function TabTwoScreen() {
 
         {/* Header Section */}
         <View style={styles.headerContainer}>
-          {/* 
-             1. The SearchBox component (exported separately).
-             2. "flex: 1" ensures it takes all available space leaving room for the icon.
-          */}
           <SearchBox
             placeholder="Search videos"
             style={{ flex: 1 }}
           />
-
-          {/* Cogwheel Icon to the right */}
           <TouchableOpacity style={styles.settingsButton}>
-            <Icon name='settings' color={colors.text}></Icon>
+            <Icon name='settings' color={colors.text} />
           </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-          {SECTIONS.map((section, index) => (
-            <View key={section.title}>
-              {/* Section Header */}
-              <View style={styles.sectionHeader}>
-                <ThemedText type="subtitle" style={{ fontFamily: Fonts.rounded, fontSize: 20 }}>
-                  {section.title}
-                </ThemedText>
-                <TouchableOpacity>
-                  <ThemedText style={styles.showMore}>Show more</ThemedText>
-                </TouchableOpacity>
-              </View>
 
-              {/* Horizontal List */}
-              <FlatList
-                data={section.data}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
-                keyExtractor={(item) => item.id}
-                ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-                renderItem={({ item }) => (
-                  <View style={styles.card}>
-                    <Link href="/detail">
-                      <Image
-                        source={{ uri: item.image }}
-                        style={styles.cardImage}
-                        contentFit="cover"
-                        transition={1000}
-                      />
-                    </Link>
-                    <ThemedText numberOfLines={2} type="defaultSemiBold" style={styles.cardTitle}>
-                      {item.title}
-                    </ThemedText>
-                    <ThemedText style={styles.cardDate}>
-                      {item.date}
-                    </ThemedText>
-                  </View>
-                )}
-              />
+          <VideoSection title="React Native" isLoading={rnLoading} data={rnVideos} />
+          <VideoSection title="React" isLoading={reactLoading} data={reactVideos} />
+          <VideoSection title="TypeScript" isLoading={tsLoading} data={tsVideos} />
+          <VideoSection title="JavaScript" isLoading={jsLoading} data={jsVideos} />
 
-              {/* Divider (except last item) */}
-              {index < SECTIONS.length - 1 && <View style={styles.divider} />}
-            </View>
-          ))}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -139,11 +147,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 12, // Gap between SearchBox and Gear Icon
+    gap: 12,
   },
   settingsButton: {
     width: 38,
     padding: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectionHeader: {
     flexDirection: 'row',
