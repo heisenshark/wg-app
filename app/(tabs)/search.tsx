@@ -1,135 +1,134 @@
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ScrollView,
   View,
-  useColorScheme,
-  ActivityIndicator
+  ActivityIndicator,
+  useColorScheme
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query'; // Upewnij się, że masz to zainstalowane
-import { Link } from 'expo-router';
+import { useLocalSearchParams, useRouter, Link } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors, Fonts } from '@/constants/theme';
 import { SearchBox } from '@/components/SearchBox';
-import Icon from '@/components/icon'; // Twój import ikon
+import { Colors } from '@/constants/theme';
+import { searchVideos, YouTubeSearchResult } from '@/utils/api'; // Upewnij się, że masz funkcję searchVideos
 
-// Importujemy funkcje API
-import {
-  fetchJsVideos,
-  fetchReactVideos,
-  fetchRnVideos,
-  fetchTsVideos,
-  YouTubeSearchResult
-} from '@/utils/api';
-
-// Helper do formatowania daty (np. 2024-08-12 -> 12.08.2024)
+// Helper do daty
 const formatDate = (isoString: string) => {
   const date = new Date(isoString);
   return date.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-// Komponent sekcji (zeby nie powtarzać kodu w głównym komponencie)
-const VideoSection = ({ title, isLoading, data }: { title: string, isLoading: boolean, data?: YouTubeSearchResult[] }) => {
-  if (isLoading) {
-    return (
-      <View style={{ height: 200, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="small" />
-      </View>
-    );
-  }
-
-  if (!data || data.length === 0) return null;
-
-  return (
-    <View>
-      <View style={styles.sectionHeader}>
-        <ThemedText type="subtitle" style={{ fontFamily: Fonts.rounded, fontSize: 20 }}>
-          {title}
-        </ThemedText>
-        <TouchableOpacity>
-          <ThemedText style={styles.showMore}>Show more</ThemedText>
-        </TouchableOpacity>
-      </View>
-
-      <FlatList
-        data={data}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        keyExtractor={(item) => item.id.videoId}
-        ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            {/* Przekazujemy cały obiekt wideo jako string JSON do detali */}
-            <Link
-              href={{
-                pathname: "/detail", // Upewnij się, że masz taki plik w app/detail.tsx lub app/(tabs)/...
-                params: { videoData: JSON.stringify(item) }
-              }}
-              asChild
-            >
-              <TouchableOpacity>
-                <Image
-                  source={{ uri: item.snippet.thumbnails.medium.url }}
-                  style={styles.cardImage}
-                  contentFit="cover"
-                  transition={500}
-                />
-                <ThemedText numberOfLines={2} type="defaultSemiBold" style={styles.cardTitle}>
-                  {item.snippet.title}
-                </ThemedText>
-                <ThemedText style={styles.cardDate}>
-                  {formatDate(item.snippet.publishedAt)}
-                </ThemedText>
-              </TouchableOpacity>
-            </Link>
-          </View>
-        )}
-      />
-      <View style={styles.divider} />
-    </View>
-  );
-};
-
-export default function TabTwoScreen() {
+export default function SearchResultsScreen() {
+  const router = useRouter();
+  const { q } = useLocalSearchParams(); // Odbieramy parametr "q"
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
-  // --- TanStack Queries ---
-  // Pobieramy dane równolegle
-  const { data: rnVideos, isLoading: rnLoading } = useQuery({ queryKey: ['videos', 'rn'], queryFn: fetchRnVideos });
-  const { data: reactVideos, isLoading: reactLoading } = useQuery({ queryKey: ['videos', 'react'], queryFn: fetchReactVideos });
-  const { data: tsVideos, isLoading: tsLoading } = useQuery({ queryKey: ['videos', 'ts'], queryFn: fetchTsVideos });
-  const { data: jsVideos, isLoading: jsLoading } = useQuery({ queryKey: ['videos', 'js'], queryFn: fetchJsVideos });
+  // Stan lokalnego inputa (żeby można było szukać ponownie z tego ekranu)
+  const [query, setQuery] = useState(q as string || '');
+
+  // Aktualizacja stanu jeśli parametr URL się zmieni
+  useEffect(() => {
+    if (q) setQuery(q as string);
+  }, [q]);
+
+  // Pobieranie danych
+  const { data: videos, isLoading } = useQuery({
+    queryKey: ['search', q], // Cache key zależy od parametru z URL
+    queryFn: () => searchVideos(q as string),
+    enabled: !!q, // Wykonaj tylko jeśli "q" istnieje
+  });
+
+  const handleSearchSubmit = () => {
+    router.push({
+      pathname: '/search',
+      params: { q: query }
+    });
+  };
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
 
-        {/* Header Section */}
+        {/* Header z SearchBoxem */}
         <View style={styles.headerContainer}>
           <SearchBox
-            placeholder="Search videos"
+            value={query}
+            onChangeText={setQuery}
+            onSubmitEditing={handleSearchSubmit}
+            returnKeyType="search"
+            placeholder="Search videos..."
             style={{ flex: 1 }}
           />
-          <TouchableOpacity style={styles.settingsButton}>
-            <Icon name='settings' color={colors.text} />
-          </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* Pasek Info */}
+        <View style={styles.infoBar}>
+          <ThemedText style={styles.resultsText}>
+            {isLoading ? 'Searching...' : `${videos?.length || 0} results found for: "${q}"`}
+          </ThemedText>
+          <View style={styles.sortContainer}>
+            <ThemedText style={styles.sortLabel}>Sort by: </ThemedText>
+            <ThemedText type="defaultSemiBold" style={styles.sortValue}>Most popular</ThemedText>
+          </View>
+        </View>
 
-          <VideoSection title="React Native" isLoading={rnLoading} data={rnVideos} />
-          <VideoSection title="React" isLoading={reactLoading} data={reactVideos} />
-          <VideoSection title="TypeScript" isLoading={tsLoading} data={tsVideos} />
-          <VideoSection title="JavaScript" isLoading={jsLoading} data={jsVideos} />
+        {/* Lista Wyników */}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.tint} />
+          </View>
+        ) : (
+          <FlatList
+            data={videos}
+            keyExtractor={(item) => item.id.videoId}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <Link
+                href={{
+                  pathname: "/detail",
+                  params: { videoData: JSON.stringify(item) }
+                }}
+                asChild
+              >
+                <TouchableOpacity style={styles.cardContainer} activeOpacity={0.8}>
+                  {/* Duży obrazek na górze */}
+                  <Image
+                    source={{ uri: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium.url }}
+                    style={styles.thumbnail}
+                    contentFit="cover"
+                  />
 
-        </ScrollView>
+                  {/* Dane pod obrazkiem */}
+                  <View style={styles.textContainer}>
+                    <ThemedText type="defaultSemiBold" style={styles.channelName}>
+                      {item.snippet.channelTitle}
+                    </ThemedText>
+
+                    <ThemedText style={styles.videoTitle} numberOfLines={2}>
+                      {item.snippet.title}
+                    </ThemedText>
+
+                    <ThemedText style={styles.dateText}>
+                      {formatDate(item.snippet.publishedAt)}
+                    </ThemedText>
+                  </View>
+                </TouchableOpacity>
+              </Link>
+            )}
+            ListEmptyComponent={
+              <View style={styles.loadingContainer}>
+                <ThemedText>No videos found.</ThemedText>
+              </View>
+            }
+          />
+        )}
       </SafeAreaView>
     </ThemedView>
   );
@@ -143,59 +142,76 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
-  settingsButton: {
-    width: 38,
-    padding: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionHeader: {
+  infoBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 12,
+    paddingVertical: 12,
   },
-  showMore: {
+  resultsText: {
     fontSize: 12,
-    opacity: 0.6,
-    textDecorationLine: 'underline',
+    opacity: 0.7,
+    flex: 1,
+    marginRight: 10,
   },
+  sortContainer: {
+    flexDirection: 'row',
+  },
+  sortLabel: {
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  sortValue: {
+    fontSize: 12,
+  },
+
+  // Lista
   listContent: {
     paddingHorizontal: 16,
+    paddingBottom: 40,
   },
-  card: {
-    width: 180,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 50,
   },
-  cardImage: {
+
+  // Karta
+  cardContainer: {
+    marginBottom: 24,
+    backgroundColor: 'transparent',
+  },
+  thumbnail: {
     width: '100%',
-    height: 100,
-    borderRadius: 12,
-    marginBottom: 8,
+    height: 200, // Duży obrazek jak w referencji
+    borderRadius: 16,
     backgroundColor: '#2d2d2d',
+    marginBottom: 12,
   },
-  cardTitle: {
+  textContainer: {
+    paddingHorizontal: 4,
+  },
+  channelName: {
     fontSize: 14,
-    lineHeight: 20,
+    color: '#1e293b', // Ciemny granat
+    marginBottom: 4,
   },
-  cardDate: {
-    fontSize: 11,
-    opacity: 0.5,
-    textAlign: 'right',
-    marginTop: 4,
+  videoTitle: {
+    fontSize: 16,
+    color: '#475569', // Szary tekst opisu/tytułu
+    lineHeight: 22,
+    marginBottom: 6,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#ccc',
-    opacity: 0.2,
-    marginHorizontal: 16,
-    marginTop: 20,
+  dateText: {
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'right', // Data po prawej stronie
   },
 });

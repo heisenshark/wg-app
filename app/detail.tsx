@@ -45,7 +45,6 @@ export default function VideoDetailScreen() {
   const { videoData } = useLocalSearchParams();
   const [orientation, setOrientation] = useState(0);
 
-  // 1. Dane początkowe
   const initialVideo: YouTubeSearchResult | null = videoData
     ? JSON.parse(videoData as string)
     : null;
@@ -53,14 +52,12 @@ export default function VideoDetailScreen() {
   const videoId = initialVideo?.id?.videoId;
   const channelId = initialVideo?.snippet?.channelId; // Pobieramy channelId
 
-  // 2. Query: Detale Wideo (Statystyki, pełny opis)
   const { data: fullDetails, isLoading: isVideoLoading } = useQuery({
     queryKey: ['videoDetails', videoId],
     queryFn: () => fetchVideoDetails(videoId!),
     enabled: !!videoId,
   });
 
-  // 3. Query: Detale Kanału (Avatar)
   const { data: channelDetails } = useQuery({
     queryKey: ['channelDetails', channelId],
     queryFn: () => fetchChannelDetails(channelId!),

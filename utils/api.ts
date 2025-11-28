@@ -168,3 +168,4 @@ export const fetchJsVideos = () => fetchVideos("javascript news tutorial");
 export const fetchReactVideos = () => fetchVideos("reactjs tutorial course");
 export const fetchRnVideos = () => fetchVideos("react native tutorial project");
 export const fetchTsVideos = () => fetchVideos("typescript tutorial crash course");
+export const searchVideos = (query: string) => fetchVideos(query);

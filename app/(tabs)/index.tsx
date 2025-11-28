@@ -1,98 +1,196 @@
+import React, { useState } from 'react';
+import {
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ScrollView,
+  View,
+  useColorScheme,
+  ActivityIndicator
+} from 'react-native';
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useRouter } from 'expo-router'; // <--- Dodano useRouter
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { Colors, Fonts } from '@/constants/theme';
+import { SearchBox } from '@/components/SearchBox';
+import Icon from '@/components/icon';
 
-export default function HomeScreen() {
+import {
+  fetchJsVideos,
+  fetchReactVideos,
+  fetchRnVideos,
+  fetchTsVideos,
+  YouTubeSearchResult
+} from '@/utils/api';
+
+const formatDate = (isoString: string) => {
+  const date = new Date(isoString);
+  return date.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+// ... (Komponent VideoSection pozostaje bez zmian) ...
+const VideoSection = ({ title, isLoading, data }: { title: string, isLoading: boolean, data?: YouTubeSearchResult[] }) => {
+  // ... (kod VideoSection taki sam jak w Twoim przykładzie)
+  if (isLoading) {
+    return (
+      <View style={{ height: 200, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="small" />
+      </View>
+    );
+  }
+
+  if (!data || data.length === 0) return null;
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit<ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
+    <View>
+      <View style={styles.sectionHeader}>
+        <ThemedText type="subtitle" style={{ fontFamily: Fonts.rounded, fontSize: 20 }}>
+          {title}
         </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/welcome">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+        <TouchableOpacity>
+          <ThemedText style={styles.showMore}>Show more</ThemedText>
+        </TouchableOpacity>
+      </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <FlatList
+        data={data}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        keyExtractor={(item) => item.id.videoId}
+        ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <Link
+              href={{
+                pathname: "/detail",
+                params: { videoData: JSON.stringify(item) }
+              }}
+              asChild
+            >
+              <TouchableOpacity>
+                <Image
+                  source={{ uri: item.snippet.thumbnails.medium.url }}
+                  style={styles.cardImage}
+                  contentFit="cover"
+                  transition={500}
+                />
+                <ThemedText numberOfLines={2} type="defaultSemiBold" style={styles.cardTitle}>
+                  {item.snippet.title}
+                </ThemedText>
+                <ThemedText style={styles.cardDate}>
+                  {formatDate(item.snippet.publishedAt)}
+                </ThemedText>
+              </TouchableOpacity>
+            </Link>
+          </View>
+        )}
+      />
+      <View style={styles.divider} />
+    </View>
+  );
+};
+
+export default function TabTwoScreen() {
+  const router = useRouter(); // Hook nawigacji
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+
+  // Stan dla pola wyszukiwania
+  const [query, setQuery] = useState('');
+
+  // Funkcja wywoływana po kliknięciu "Szukaj" na klawiaturze
+  const handleSearchSubmit = () => {
+    if (query.trim().length > 0) {
+      // Przechodzimy do drugiego ekranu z parametrem query
+      router.push({
+        pathname: '/search',
+        params: { q: query }
+      });
+    }
+  };
+
+  const { data: rnVideos, isLoading: rnLoading } = useQuery({ queryKey: ['videos', 'rn'], queryFn: fetchRnVideos });
+  const { data: reactVideos, isLoading: reactLoading } = useQuery({ queryKey: ['videos', 'react'], queryFn: fetchReactVideos });
+  const { data: tsVideos, isLoading: tsLoading } = useQuery({ queryKey: ['videos', 'ts'], queryFn: fetchTsVideos });
+  const { data: jsVideos, isLoading: jsLoading } = useQuery({ queryKey: ['videos', 'js'], queryFn: fetchJsVideos });
+
+  return (
+    <ThemedView style={styles.container}>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+
+        {/* Header z SearchBoxem */}
+        <View style={styles.headerContainer}>
+          <SearchBox
+            placeholder="Search videos"
+            style={{ flex: 1 }}
+            value={query}
+            onChangeText={setQuery}
+            // Ważne: to musi być obsługiwane w Twoim SearchBox (TextInput props)
+            onSubmitEditing={handleSearchSubmit}
+            returnKeyType="search"
+          />
+          <TouchableOpacity style={styles.settingsButton}>
+            <Icon name='settings' color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+          <VideoSection title="React Native" isLoading={rnLoading} data={rnVideos} />
+          <VideoSection title="React" isLoading={reactLoading} data={reactVideos} />
+          <VideoSection title="TypeScript" isLoading={tsLoading} data={tsVideos} />
+          <VideoSection title="JavaScript" isLoading={jsLoading} data={jsVideos} />
+        </ScrollView>
+      </SafeAreaView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: { flex: 1 },
+  safeArea: { flex: 1 },
+  headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
   },
-  stepContainer: {
-    gap: 8,
+  settingsButton: {
+    width: 38,
+    padding: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  showMore: { fontSize: 12, opacity: 0.6, textDecorationLine: 'underline' },
+  listContent: { paddingHorizontal: 16 },
+  card: { width: 180 },
+  cardImage: {
+    width: '100%',
+    height: 100,
+    borderRadius: 12,
     marginBottom: 8,
+    backgroundColor: '#2d2d2d',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  cardTitle: { fontSize: 14, lineHeight: 20 },
+  cardDate: { fontSize: 11, opacity: 0.5, textAlign: 'right', marginTop: 4 },
+  divider: {
+    height: 1,
+    backgroundColor: '#ccc',
+    opacity: 0.2,
+    marginHorizontal: 16,
+    marginTop: 20,
   },
 });
