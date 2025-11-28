@@ -164,8 +164,37 @@ export const fetchVideoDetails = async (videoId: string): Promise<YouTubeVideoDe
 	}
 };
 
+export type SortOrder = 'date' | 'viewCount' | 'relevance';
+
 export const fetchJsVideos = () => fetchVideos("javascript news tutorial");
 export const fetchReactVideos = () => fetchVideos("reactjs tutorial course");
 export const fetchRnVideos = () => fetchVideos("react native tutorial project");
 export const fetchTsVideos = () => fetchVideos("typescript tutorial crash course");
-export const searchVideos = (query: string) => fetchVideos(query);
+
+export const searchVideos = async (query: string, order: SortOrder = 'relevance'): Promise<YouTubeSearchResult[]> => {
+	const apiKey = process.env.EXPO_PUBLIC_GOOGLE_API_KEY;
+	if (!apiKey) return [];
+
+	try {
+		const params = new URLSearchParams({
+			part: 'snippet',
+			type: 'video',
+			maxResults: '10',
+			q: query,
+			order: order, // <--- Dodajemy parametr order
+			key: apiKey,
+		});
+
+		const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
+
+		if (!response.ok) {
+			throw new Error(`YouTube API Error: ${response.status}`);
+		}
+
+		const data = await response.json();
+		return data.items || [];
+	} catch (error) {
+		console.error("Fetch error:", error);
+		return [];
+	}
+};

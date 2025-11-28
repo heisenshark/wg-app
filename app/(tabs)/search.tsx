@@ -16,7 +16,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { SearchBox } from '@/components/SearchBox';
 import { Colors } from '@/constants/theme';
-import { searchVideos, YouTubeSearchResult } from '@/utils/api'; // Upewnij się, że masz funkcję searchVideos
+import { searchVideos, SortOrder } from '@/utils/api'; // Import typu SortOrder
+import { SortModal } from '@/components/sort-modal'; // Import nowego modala
 
 // Helper do daty
 const formatDate = (isoString: string) => {
@@ -24,31 +25,40 @@ const formatDate = (isoString: string) => {
   return date.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
+// Mapowanie nazw technicznych na ładne nazwy do wyświetlania na pasku
+const SORT_LABELS: Record<string, string> = {
+  date: 'Latest',
+  viewCount: 'Most popular',
+  relevance: 'Oldest', // Fallback, jak ustaliliśmy w modalu
+};
+
 export default function SearchResultsScreen() {
   const router = useRouter();
-  const { q } = useLocalSearchParams(); // Odbieramy parametr "q"
+  const { q } = useLocalSearchParams();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
 
-  // Stan lokalnego inputa (żeby można było szukać ponownie z tego ekranu)
   const [query, setQuery] = useState(q as string || '');
 
-  // Aktualizacja stanu jeśli parametr URL się zmieni
+  // NOWE STANY
+  const [sortOrder, setSortOrder] = useState<SortOrder>('viewCount'); // Domyślnie 'Most popular'
+  const [isSortModalVisible, setSortModalVisible] = useState(false);
+
   useEffect(() => {
     if (q) setQuery(q as string);
   }, [q]);
 
-  // Pobieranie danych
+  // Aktualizacja zapytania - klucz zależy teraz też od sortOrder
   const { data: videos, isLoading } = useQuery({
-    queryKey: ['search', q], // Cache key zależy od parametru z URL
-    queryFn: () => searchVideos(q as string),
-    enabled: !!q, // Wykonaj tylko jeśli "q" istnieje
+    queryKey: ['search', q, sortOrder],
+    queryFn: () => searchVideos(q as string, sortOrder), // Przekazujemy sortOrder
+    enabled: !!q,
   });
 
   const handleSearchSubmit = () => {
     router.push({
-      pathname: '/search',
-      params: { q: query }
+      pathname: '/search-results',
+      params: { q: query } // Resetujemy sortowanie przy nowym szukaniu? Zależy od Ciebie. Tutaj zostaje.
     });
   };
 
@@ -56,7 +66,15 @@ export default function SearchResultsScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
 
-        {/* Header z SearchBoxem */}
+        {/* Modal Sortowania */}
+        <SortModal
+          visible={isSortModalVisible}
+          currentSort={sortOrder}
+          onClose={() => setSortModalVisible(false)}
+          onConfirm={(newOrder) => setSortOrder(newOrder)}
+        />
+
+        {/* Header */}
         <View style={styles.headerContainer}>
           <SearchBox
             value={query}
@@ -68,15 +86,22 @@ export default function SearchResultsScreen() {
           />
         </View>
 
-        {/* Pasek Info */}
+        {/* Info Bar z przyciskiem sortowania */}
         <View style={styles.infoBar}>
           <ThemedText style={styles.resultsText}>
             {isLoading ? 'Searching...' : `${videos?.length || 0} results found for: "${q}"`}
           </ThemedText>
-          <View style={styles.sortContainer}>
+
+          {/* Klikalny element sortowania */}
+          <TouchableOpacity
+            style={styles.sortContainer}
+            onPress={() => setSortModalVisible(true)}
+          >
             <ThemedText style={styles.sortLabel}>Sort by: </ThemedText>
-            <ThemedText type="defaultSemiBold" style={styles.sortValue}>Most popular</ThemedText>
-          </View>
+            <ThemedText type="defaultSemiBold" style={styles.sortValue}>
+              {SORT_LABELS[sortOrder]} ▾
+            </ThemedText>
+          </TouchableOpacity>
         </View>
 
         {/* Lista Wyników */}
@@ -98,14 +123,12 @@ export default function SearchResultsScreen() {
                 asChild
               >
                 <TouchableOpacity style={styles.cardContainer} activeOpacity={0.8}>
-                  {/* Duży obrazek na górze */}
                   <Image
                     source={{ uri: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium.url }}
                     style={styles.thumbnail}
                     contentFit="cover"
                   />
 
-                  {/* Dane pod obrazkiem */}
                   <View style={styles.textContainer}>
                     <ThemedText type="defaultSemiBold" style={styles.channelName}>
                       {item.snippet.channelTitle}
@@ -162,6 +185,7 @@ const styles = StyleSheet.create({
   },
   sortContainer: {
     flexDirection: 'row',
+    padding: 4, // Hit slop
   },
   sortLabel: {
     fontSize: 12,
@@ -170,8 +194,6 @@ const styles = StyleSheet.create({
   sortValue: {
     fontSize: 12,
   },
-
-  // Lista
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 40,
@@ -182,15 +204,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 50,
   },
-
-  // Karta
   cardContainer: {
     marginBottom: 24,
     backgroundColor: 'transparent',
   },
   thumbnail: {
     width: '100%',
-    height: 200, // Duży obrazek jak w referencji
+    height: 200,
     borderRadius: 16,
     backgroundColor: '#2d2d2d',
     marginBottom: 12,
@@ -200,18 +220,18 @@ const styles = StyleSheet.create({
   },
   channelName: {
     fontSize: 14,
-    color: '#1e293b', // Ciemny granat
+    color: '#1e293b',
     marginBottom: 4,
   },
   videoTitle: {
     fontSize: 16,
-    color: '#475569', // Szary tekst opisu/tytułu
+    color: '#475569',
     lineHeight: 22,
     marginBottom: 6,
   },
   dateText: {
     fontSize: 12,
     color: '#64748b',
-    textAlign: 'right', // Data po prawej stronie
+    textAlign: 'right',
   },
 });
