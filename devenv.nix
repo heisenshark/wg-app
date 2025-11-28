@@ -14,6 +14,7 @@
   packages = [
     pkgs.git
     pkgs.nodejs
+    pkgs.eas-cli
   ];
 
   # https://devenv.sh/languages/
