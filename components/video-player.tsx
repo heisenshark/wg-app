@@ -1,226 +1,298 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, TouchableOpacity, Dimensions, useColorScheme, useWindowDimensions } from 'react-native';
-import { Image } from 'expo-image';
+import React, { useRef, useState } from 'react';
+import {
+  StyleSheet,
+  View,
+  TouchableOpacity,
+  useWindowDimensions,
+  Pressable,
+  GestureResponderEvent
+} from 'react-native';
 import { ThemedText } from '@/components/themed-text';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import Video, { OnProgressData, VideoRef } from 'react-native-video';
+import Video, { OnProgressData, VideoRef, OnLoadData } from 'react-native-video';
 import Icon from './icon';
-import { Colors } from '@/constants/theme';
 import { useNavigation } from 'expo-router';
-import * as ScreenOrientation from 'expo-screen-orientation';
 
-const { width } = Dimensions.get('window');
-const VIDEO_HEIGHT = width * 0.5625; // 16:9 Aspect Ratio
+// --- Constants ---
+const VIDEO_ASPECT_RATIO = 0.5625; // 16:9
+
+const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
 
 interface VideoPlayerProps {
-  thumbnailUri: string;
+  thumbnailUri?: string;
   currentTime?: string;
-  totalTime?: number;
+  totalTime?: string;
   onBackPress?: () => void;
 }
 
-export function VideoPlayer({
-  thumbnailUri,
-  currentTime = "0:00",
-  totalTime = 0,
-  onBackPress
-}: VideoPlayerProps) {
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+export function VideoPlayer({ onBackPress, thumbnailUri }: VideoPlayerProps) {
   const navigation = useNavigation();
+  const dim = useWindowDimensions();
   const videoRef = useRef<VideoRef>(null);
-  const background = require('../assets/video/broadchurch.mp4');
-  const [progressText, setProgressText] = useState(`${formatTime(0)}/${formatTime(totalTime)}`);
+
+  // --- State ---
   const [paused, setPaused] = useState(true);
   const [muted, setMuted] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [progressBarWidth, setProgressBarWidth] = useState(0);
 
-  const dim = useWindowDimensions();
-
-  const onProgress = (e: OnProgressData) => {
-    setProgressText(`${formatTime(e.currentTime)}/${formatTime(e.playableDuration)}`)
+  // --- Handlers ---
+  const handleLoad = (meta: OnLoadData) => {
+    setDuration(meta.duration);
   };
 
+  const handleProgress = (progress: OnProgressData) => {
+    setCurrentTime(progress.currentTime);
+  };
+
+  const handleSeek = (event: GestureResponderEvent) => {
+    if (duration === 0 || progressBarWidth === 0) return;
+
+    const touchX = event.nativeEvent.locationX;
+    const progress = touchX / progressBarWidth;
+    const newTime = progress * duration;
+
+    videoRef.current?.seek(newTime);
+    setCurrentTime(newTime);
+  };
+
+  const skipForward = async () => {
+    const current = await videoRef.current?.getCurrentPosition() || 0;
+    videoRef.current?.seek(current + 10);
+  };
+
+  const skipBackward = async () => {
+    const current = await videoRef.current?.getCurrentPosition() || 0;
+    videoRef.current?.seek(current - 10);
+  };
+
+  const handleBack = () => {
+    if (onBackPress) {
+      onBackPress();
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <View style={[styles.container, { width: "100%", height: dim.width * 0.5625 }]}>
-      {/* Background Thumbnail */}
+    <View style={[styles.container, { height: dim.width * VIDEO_ASPECT_RATIO }]}>
 
+      {/* 1. WIDEO */}
       <Video
-        source={background}
+        source={require('@/assets/video/broadchurch.mp4')}
         ref={videoRef}
         style={styles.backgroundVideo}
+        resizeMode="contain"
         controls={false}
-        onProgress={onProgress}
+        onLoad={handleLoad}
+        onProgress={handleProgress}
         paused={paused}
         volume={muted ? 0 : 1}
-      >
+        poster={thumbnailUri}
+        posterResizeMode="cover"
+      />
 
-      </Video>
+      {/* 2. OVERLAY */}
       <View style={styles.overlay}>
-        <ThemedText style={styles.timeRow} lightColor="white">
-          {progressText}
-        </ThemedText>
 
+        {/* --- Top Controls --- */}
+        {/* Z-index zapewnia, że są klikalne */}
         <View style={styles.topControls}>
-
-          <TouchableOpacity style={styles.iconButton} onPress={() => {
-            navigation.goBack();
-          }}>
-
-            <Icon name='leftarrow' color={Colors.dark.text} />
-
+          <TouchableOpacity style={styles.controlButton} onPress={handleBack}>
+            <Icon name='leftarrow' color="#FFF" size={18} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.iconButton, { marginLeft: "auto", alignSelf: "flex-end" }]} onPress={() => { setMuted(n => !n) }}>
-
-            <Icon name='volume' color={Colors.dark.text} />
-
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.iconButton]} onPress={() => {
-            videoRef.current?.enterPictureInPicture()
-          }}>
-
-            <Icon name="airplay" color={Colors.dark.text} />
-
-          </TouchableOpacity>
+          <View style={styles.topRightControls}>
+            <TouchableOpacity style={styles.controlButton} onPress={() => setMuted(m => !m)}>
+              <Icon name={muted ? 'volume-off' : 'volume'} color="#FFF" size={18} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.controlButton}>
+              <Icon name="airplay" color="#FFF" size={18} />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* --- Center Controls --- */}
+        {/* Używamy flex: 1, żeby zajęły środek, ale nie przykryły góry/dołu */}
         <View style={styles.centerControls}>
-
-          <TouchableOpacity style={styles.iconButton} onPress={async () => videoRef.current?.seek(await videoRef.current.getCurrentPosition() - 5)}>
-
-            <Icon name='backward' color={Colors.dark.text} />
-
+          <TouchableOpacity style={styles.controlButton} onPress={skipBackward}>
+            <Icon name='backward' color="#FFF" size={20} />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconButton, { width: 50, height: 50 }]} onPress={() => setPaused(n => !n)}>
 
-            <Icon name={paused ? "play" : "pause"} color={Colors.dark.text} style={{ marginLeft: 0 }} />
-
+          <TouchableOpacity
+            style={styles.playButtonCircle}
+            onPress={() => setPaused(p => !p)}
+          >
+            <Icon
+              name={paused ? "play" : "pause"}
+              color="#FFF"
+              size={24}
+              style={paused ? { marginLeft: 3 } : {}}
+            />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}
-            onPress={async () => videoRef.current?.seek(await videoRef.current.getCurrentPosition() + 5)}>
 
-            <Icon name='forward' color={Colors.dark.text} />
-
+          <TouchableOpacity style={styles.controlButton} onPress={skipForward}>
+            <Icon name='forward' color="#FFF" size={20} />
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={[styles.iconButton, { position: "absolute", right: 0, bottom: 0, margin: 5, marginLeft: "auto" }]}
-          onPress={async () => videoRef.current?.setFullScreen(true)}>
+        {/* --- Bottom Info --- */}
+        <View style={styles.bottomInfoRow}>
+          <ThemedText style={styles.timeText}>
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </ThemedText>
 
-          <Icon name='fullscreen' color={Colors.dark.text} />
+          <TouchableOpacity style={styles.fullscreenButton} onPress={() => videoRef.current?.setFullScreen(true)}>
+            <Icon name='fullscreen' color="#FFF" size={18} />
+          </TouchableOpacity>
+        </View>
 
-        </TouchableOpacity>
       </View>
+
+      {/* 3. PROGRESS BAR */}
+      <View style={styles.progressBarContainer}>
+        <Pressable
+          style={styles.progressBarTouchArea}
+          onPress={handleSeek}
+          onLayout={(e) => setProgressBarWidth(e.nativeEvent.layout.width)}
+        >
+          <View style={styles.progressBarTrack}>
+            <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+            <View style={[styles.progressBarKnob, { left: `${progressPercent}%` }]} />
+          </View>
+        </Pressable>
+      </View>
+
     </View>
   );
 }
 
-
-const formatTime = (seconds: number) => {
-  seconds = Math.round(seconds);
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`
-}
-
 const styles = StyleSheet.create({
   container: {
-    height: VIDEO_HEIGHT,
+    width: '100%',
     backgroundColor: '#000',
+    overflow: 'visible',
     position: 'relative',
   },
-  background: {
-    width: '100%',
-    height: '100%',
-    opacity: 0.6, // Dimmed for overlay visibility
+  backgroundVideo: {
+    ...StyleSheet.absoluteFillObject,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'space-between',
-    alignItems: "center",
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    display: "flex",
-    flexDirection: "column",
-    height: "100%"
-  },
-  topControls: {
-    position: "absolute",
-    width: "100%",
-    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.2)',
     justifyContent: 'flex-start',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
+    zIndex: 10,
   },
-  topRightControls: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  iconButton: {
+
+  // --- BUTTONS ---
+  controlButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
-    verticalAlign: 'middle',
-    padding: 4,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: '100%',
-    width: 40,
-    height: 40,
+    alignItems: 'center',
   },
-  centerControls: {
-    flexDirection: 'row',
-    marginVertical: "auto",
-    gap: 40,
-  },
-  controlCircleLarge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  playButtonCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  controlCircleSmall: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+  fullscreenButton: {
+    width: 30,
+    height: 30,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  bottomControls: {
-    marginBottom: 5,
+
+  // --- TOP ---
+  topControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 20, // Na wszelki wypadek wyżej niż reszta
   },
-  timeRow: {
-    position: "absolute",
-    bottom: 0,
-    left: 5,
-    margin: 5,
+  topRightControls: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+
+  // --- CENTER ---
+  centerControls: {
+    // ZMIANA: Flex 1 sprawia, że ten kontener rozpycha się w pionie,
+    // odsuwając górę od dołu, ale nie nakłada się na nie.
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 32,
+  },
+
+  // --- BOTTOM INFO ---
+  bottomInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 20,
   },
   timeText: {
-    color: '#fff',
-    fontSize: 12,
+    color: '#FFF',
+    fontSize: 11,
     fontWeight: '600',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
+
+  // --- PROGRESS BAR ---
   progressBarContainer: {
-    height: 4,
-    width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    borderRadius: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progressBarBackground: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 2,
-  },
-  backgroundVideo: {
     position: 'absolute',
-    marginHorizontal: "auto",
-    top: 0,
-    left: 0,
     bottom: 0,
+    left: 0,
     right: 0,
-  }
+    zIndex: 30, // Najwyżej
+    height: 20,
+    justifyContent: 'flex-end',
+  },
+  progressBarTouchArea: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'flex-end',
+    backgroundColor: 'transparent',
+  },
+  progressBarTrack: {
+    height: 2, // Jeszcze cieńszy pasek (YouTube style)
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#FF0000',
+  },
+  progressBarKnob: {
+    position: 'absolute',
+    height: 12,
+    width: 12,
+    backgroundColor: '#FF0000',
+    borderRadius: 6,
+    top: -5,
+    marginLeft: -6,
+    zIndex: 10,
+  },
 });

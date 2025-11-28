@@ -110,7 +110,6 @@ export default function VideoDetailScreen() {
             {title}
           </ThemedText>
 
-          {/* Sekcja Kanału z Avatarem */}
           <View style={styles.channelContainer}>
             <View style={styles.avatarContainer}>
               {channelAvatarUrl ? (
@@ -172,7 +171,6 @@ export default function VideoDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  // ... (reszta stylów bez zmian)
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -181,6 +179,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   scrollContentContainer: {
+    zIndex: -10,
     padding: 20,
   },
   videoTitle: {
