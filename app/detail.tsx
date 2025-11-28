@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
   ScrollView,
   TouchableOpacity,
-  Dimensions
+  Dimensions,
+  useWindowDimensions
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,8 +14,14 @@ import { StatusBar } from 'expo-status-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { VideoPlayer } from '@/components/video-player';
 
 const { width } = Dimensions.get('window');
+import * as ScreenOrientation from 'expo-screen-orientation';
+import Icon from '@/components/icon';
+import { IconName } from 'generated-icons';
+
+
 const VIDEO_HEIGHT = width * 0.5625; // 16:9 Aspect Ratio
 
 // --- Mock Data ---
@@ -30,136 +37,88 @@ const VIDEO_INFO = {
 
 // --- Components ---
 
-const VideoPlayerPlaceholder = () => {
-  return (
-    <View style={styles.videoContainer}>
-      {/* Background Thumbnail (Place real <Video> component here later) */}
-      <Image
-        source={{ uri: 'https://img.youtube.com/vi/gvkqT_Uoahw/maxresdefault.jpg' }}
-        style={styles.videoBackground}
-        contentFit="cover"
-      />
-
-      {/* Overlay Controls */}
-      <View style={styles.overlay}>
-
-        {/* Top Controls */}
-        <View style={styles.topControls}>
-          <TouchableOpacity style={styles.iconButton}>
-            <IconSymbol name="arrow.left" size={24} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.topRightControls}>
-            <TouchableOpacity style={styles.iconButton}>
-              <IconSymbol name="speaker.wave.2.fill" size={20} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
-              <IconSymbol name="tv" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Center Playback Controls */}
-        <View style={styles.centerControls}>
-          <TouchableOpacity style={styles.controlCircleSmall}>
-            <IconSymbol name="backward.fill" size={16} color="#fff" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.controlCircleLarge}>
-            <IconSymbol name="play.fill" size={28} color="#fff" style={{ marginLeft: 4 }} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.controlCircleSmall}>
-            <IconSymbol name="forward.fill" size={16} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Bottom Progress Bar & Info */}
-        <View style={styles.bottomControls}>
-          <View style={styles.timeRow}>
-            <ThemedText style={styles.timeText}>
-              {VIDEO_INFO.currentTime} / {VIDEO_INFO.totalTime}
-            </ThemedText>
-            <TouchableOpacity>
-              <IconSymbol name="arrow.up.left.and.arrow.down.right" size={18} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Progress Bar Line */}
-          <View style={styles.progressBarContainer}>
-            <View style={styles.progressBarBackground} />
-            <View style={styles.progressBarFill} />
-            <View style={styles.progressBarKnob} />
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-};
-
-const StatBox = ({ icon, text }: { icon: string, text: string }) => (
+const StatBox = ({ icon, text }: { icon: IconName, text: string }) => (
   <View style={styles.statBox}>
-    <IconSymbol name={icon as any} size={20} color="#fff" style={{ marginRight: 8 }} />
+    <Icon name={icon as any} color="#fff" style={{ marginRight: 8, height: 20, width: 20 }} />
     <ThemedText type="defaultSemiBold" style={{ color: '#fff', fontSize: 13 }}>{text}</ThemedText>
   </View>
 );
 
 export default function VideoDetailScreen() {
+  const [orientation, setOrientation] = useState(0)
+  const [width, setWidth] = useState(Dimensions.get('window'));
+
+  useEffect(() => {
+    ScreenOrientation.unlockAsync();
+    ScreenOrientation.getOrientationAsync().then(e => setOrientation(e))
+    const sub = ScreenOrientation.addOrientationChangeListener((e) => { setOrientation(e.orientationInfo.orientation) });
+    return () => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
+      ScreenOrientation.removeOrientationChangeListener(sub);
+    }
+  }, []);
+
+
+
   return (
     <ThemedView style={styles.container}>
       <StatusBar style="light" />
       <SafeAreaView edges={['top']} style={{ flex: 0, backgroundColor: '#000' }} />
 
       {/* Video Player Section (Fixed at top) */}
-      <VideoPlayerPlaceholder />
 
       {/* Scrollable Content */}
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
+        <VideoPlayer thumbnailUri='https://img.youtube.com/vi/gvkqT_Uoahw/maxresdefault.jpg' />
         {/* Title */}
-        <ThemedText type="subtitle" style={styles.videoTitle}>
-          {VIDEO_INFO.title}
-        </ThemedText>
+        <View style={styles.scrollContentContainer}>
 
-        {/* Channel Info */}
-        <View style={styles.channelContainer}>
-          <View style={styles.avatar}>
-            <IconSymbol name="person" size={24} color="#fff" />
-          </View>
-          <ThemedText type="defaultSemiBold" style={styles.channelName}>
-            {VIDEO_INFO.channelName}
+          <ThemedText type="subtitle" style={styles.videoTitle}>
+            {VIDEO_INFO.title}
           </ThemedText>
-        </View>
 
-        {/* Tabs */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity style={[styles.tabItem, styles.activeTab]}>
-            <ThemedText type="defaultSemiBold" style={styles.activeTabText}>Details</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tabItem}>
-            <ThemedText type="defaultSemiBold" style={styles.inactiveTabText}>Notes</ThemedText>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.divider} />
-
-        {/* Description */}
-        <View style={styles.section}>
-          <ThemedText type="defaultSemiBold" style={styles.sectionHeader}>Description</ThemedText>
-          <ThemedText style={styles.descriptionText}>
-            {VIDEO_INFO.description}
-            {'\n\n'}
-            Vivamus ut massa finibus, consequat dui commodo, semper magna. Donec nec justo consectetur lacus facilisis tristique eget quis nulla.
-          </ThemedText>
-        </View>
-
-        {/* Statistics */}
-        <View style={styles.section}>
-          <ThemedText type="defaultSemiBold" style={styles.sectionHeader}>Statistics</ThemedText>
-          <View style={styles.statsContainer}>
-            <StatBox icon="desktopcomputer" text={VIDEO_INFO.views} />
-            <StatBox icon="hand.thumbsup" text={VIDEO_INFO.likes} />
+          {/* Channel Info */}
+          <View style={styles.channelContainer}>
+            <View style={styles.avatar}>
+              <IconSymbol name="person" size={24} color="#fff" />
+            </View>
+            <ThemedText type="defaultSemiBold" style={styles.channelName}>
+              {VIDEO_INFO.channelName}
+            </ThemedText>
           </View>
-        </View>
 
+          {/* Tabs */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity style={[styles.tabItem, styles.activeTab]}>
+              <ThemedText type="defaultSemiBold" style={styles.activeTabText}>Details</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.tabItem}>
+              <ThemedText type="defaultSemiBold" style={styles.inactiveTabText}>Notes</ThemedText>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.divider} />
+
+          {/* Description */}
+          <View style={styles.section}>
+            <ThemedText type="defaultSemiBold" style={styles.sectionHeader}>Description</ThemedText>
+            <ThemedText style={styles.descriptionText}>
+              {VIDEO_INFO.description}
+              {'\n\n'}
+              Vivamus ut massa finibus, consequat dui commodo, semper magna. Donec nec justo consectetur lacus facilisis tristique eget quis nulla.
+            </ThemedText>
+          </View>
+
+          {/* Statistics */}
+          <View style={styles.section}>
+            <ThemedText type="defaultSemiBold" style={styles.sectionHeader}>Statistics</ThemedText>
+            <View style={styles.statsContainer}>
+              <StatBox icon="views" text={VIDEO_INFO.views} />
+              <StatBox icon="likes" text={VIDEO_INFO.likes} />
+            </View>
+          </View>
+
+        </View>
       </ScrollView>
     </ThemedView>
   );
@@ -270,8 +229,9 @@ const styles = StyleSheet.create({
 
   // --- Content Styles ---
   scrollContent: {
+  },
+  scrollContentContainer: {
     padding: 20,
-    paddingBottom: 40,
   },
   videoTitle: {
     fontSize: 18,
